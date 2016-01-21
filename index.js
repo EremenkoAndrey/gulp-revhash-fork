@@ -10,32 +10,35 @@ module.exports = function(options) {
 
   var startReg = /<!--\s*rev\-hash\s*-->/gim;
   var endReg = /<!--\s*end\s*-->/gim;
-  var jsAndCssReg = /<\s*script\s+.*?src\s*=\s*"([^"]+.js).*".*?><\s*\/\s*script\s*>|<\s*link\s+.*?href\s*=\s*"([^"]+.css).*".*?>/gi;
-  var regSpecialsReg = /([.?*+^$[\]\\(){}|-])/g;
+  var jsReg = /<\s*script\s+.*?src\s*=\s*"([^"]+.js).*".*?><\s*\/\s*script\s*>/gi;
+  var cssReg = /<\s*link\s+.*?href\s*=\s*"([^"]+.css).*".*?>/gi;
+  var deferReg = /defer/i;
+  var asincReg = /asinc/i;
   var basePath, mainPath, mainName, alternatePath;
 
   function getBlockType(content) {
     return jsReg.test(content) ? 'js' : 'css';
   }
 
-  function getTags(content) {
-    var tags = [];
+    function getFiles(content, reg) {
+        var paths = [];
+        var files = [];
+        var element = {};
 
-    content
-      .replace(/<!--(?:(?:.|\r|\n)*?)-->/gim, '')
-      .replace(jsAndCssReg, function (a, b, c) {
-        tags.push({
-          html: a,
-          path: b || c,
-          pathReg: new RegExp(escapeRegSpecials(b || c) + '.*?"', 'g')
-        });
-      });
+        content
+                .replace(/<!--(?:(?:.|\r|\n)*?)-->/gim, '')
+                .replace(reg, function (a, b) {
+                    element.url = b;
+                    if (a.search(deferReg) !== -1) {
+                        element.defer = true;
+                    }
+                    if (a.search(asincReg) !== -1) {
+                        element.asinc = true;
+                    }
+                    paths.push(element);
+                });
 
-    return tags;
-  }
-
-  function escapeRegSpecials(str) {
-    return (str + '').replace(regSpecialsReg, "\\$1");
+    return paths;
   }
 
   return through.obj(function(file, enc, callback) {
@@ -57,21 +60,33 @@ module.exports = function(options) {
 
       for (var i = 0, l = sections.length; i < l; ++i) {
         if (sections[i].match(startReg)) {
-          var tag;
+          var assets, defer, asinc, type;
           var section = sections[i].split(startReg);
-          var tags = getTags(section[1]);
           html.push(section[0]);
           html.push('<!-- rev-hash -->\r\n')
 
-          for (var j = 0; j < tags.length; j++) {
-            tag = tags[j];
+          var cssAssets = getFiles(section[1], cssReg);
+          var jsAssets = getFiles(section[1], jsReg);
+          if (cssAssets.length > 0) { assets = cssAssets; type = 'css' }
+          else { assets = jsAssets; type = 'js' }
+
+          for (var j = 0; j < assets.length; j++) {
+            asset = assets[j].url;
+            defer = assets[j].defer ? 'defer="defer" ' : '';
+            asinc = assets[j].asinc ? 'asinc="asinc" ' : '';
+
             var hash = require('crypto')
               .createHash('md5')
               .update(
                 fs.readFileSync(
-                  path.join((options.assetsDir?options.assetsDir:''), tag.path), {encoding: 'utf8'}))
+                  path.join((options.assetsDir?options.assetsDir:''), asset), {encoding: 'utf8'}))
               .digest("hex");
-            html.push(tag.html.replace(tag.pathReg, tag.path + '?v=' + hash + '"') + '\r\n');
+              if (type === 'css') {
+                html.push('<link rel="stylesheet" href="' + asset + '?v=' + hash + '"/>\r\n');
+              }
+              else {
+                html.push('<script ' + defer + asinc + ' src="' + asset + '?v=' + hash + '"></script>\r\n');
+              }
           }
           html.push('<!-- end -->');
         }
