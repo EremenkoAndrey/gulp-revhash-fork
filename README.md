@@ -1,4 +1,4 @@
-gulp-rev-hash
+gulp-revhash-fork
 =============
 
 > Keeps a file's hash in file's links to your assets. For automatic cache updating purpose.
