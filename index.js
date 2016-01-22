@@ -13,7 +13,7 @@ module.exports = function(options) {
   var jsReg = /<\s*script\s+.*?src\s*=\s*"([^"]+.js).*".*?><\s*\/\s*script\s*>/gi;
   var cssReg = /<\s*link\s+.*?href\s*=\s*"([^"]+.css).*".*?>/gi;
   var deferReg = /defer/i;
-  var asincReg = /asinc/i;
+  var asyncReg = /async/i;
   var basePath, mainPath, mainName, alternatePath;
 
   function getBlockType(content) {
@@ -32,8 +32,8 @@ module.exports = function(options) {
                     if (a.search(deferReg) !== -1) {
                         element.defer = true;
                     }
-                    if (a.search(asincReg) !== -1) {
-                        element.asinc = true;
+                    if (a.search(asyncReg) !== -1) {
+                        element.async = true;
                     }
                     paths.push(element);
                 });
@@ -60,7 +60,7 @@ module.exports = function(options) {
 
       for (var i = 0, l = sections.length; i < l; ++i) {
         if (sections[i].match(startReg)) {
-          var assets, defer, asinc, type;
+          var assets, defer, async, type;
           var section = sections[i].split(startReg);
           html.push(section[0]);
           html.push('<!-- rev-hash -->\r\n')
@@ -73,7 +73,7 @@ module.exports = function(options) {
           for (var j = 0; j < assets.length; j++) {
             asset = assets[j].url;
             defer = assets[j].defer ? 'defer="defer" ' : '';
-            asinc = assets[j].asinc ? 'asinc="asinc" ' : '';
+            async = assets[j].async ? 'async="async" ' : '';
 
             var hash = require('crypto')
               .createHash('md5')
@@ -85,7 +85,7 @@ module.exports = function(options) {
                 html.push('<link rel="stylesheet" href="' + asset + '?v=' + hash + '"/>\r\n');
               }
               else {
-                html.push('<script ' + defer + asinc + ' src="' + asset + '?v=' + hash + '"></script>\r\n');
+                html.push('<script ' + defer + async + ' src="' + asset + '?v=' + hash + '"></script>\r\n');
               }
           }
           html.push('<!-- end -->');
